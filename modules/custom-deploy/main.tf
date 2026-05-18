@@ -2,7 +2,7 @@ provider "aws" {
     region = var.aws_region
 }
 
-resource "aws_security_group" "ec2-web-apache-sg" {
+resource "aws_security_group" "ssh-http-access" {
     name        = "ec2-web-apache-sg"
     description = "Security group for EC2 with apache hosted app"
     vpc_id = "vpc-0b4e5ae1ba2275b18"
@@ -31,12 +31,28 @@ resource "aws_security_group" "ec2-web-apache-sg" {
     }
 
     tags = {
-    Name = "ec2-instance-web01_SG"
+    Name = "ssh-http-access"
   }
 
 }
 
-resource "aws_instance" "ec2-instance-web01" {
+resource "aws_db_instance" "db-ecommerce-1" {
+    allocated_storage    = 10
+    db_name              = "e-commerce1"
+    engine               = "mysql"
+    parameter_group_name = "default:mysql5.7"
+    engine_version       = "5.7.44-rd.20250103"
+    instance_class       = "db.t3.micro"
+    username             = "adminecommerce"
+    password             = "MySecretPassword1234"
+    db_subnet_group_name = "local.db_subnet_group_name"
+    storage_type         = "gp2"
+    multi_az = "false"
+    skip_final_snapshot  = true
+  
+}
+
+resource "aws_instance" "ec2-instance-ecommerce" {
     ami = var.ami
     instance_type= var.instance_type
     key_name = var.key
@@ -53,13 +69,24 @@ resource "aws_instance" "ec2-instance-web01" {
       "sudo yum install httpd -y",
       "sudo systemctl start httpd",
       "sudo yum install git -y",
-      "sudo git clone https://github.com/mauricioamendola/chaos-monkey-app.git /var/www/html",
+      "sudo git clone https://github.com/mauricioamendola/simple-ecomme.git /var/www/html",
       "sudo systemctl restart httpd",
+      "sudo yum install -y https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm",
+      "sudo yum install -y mysql-community-server",
+      "sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm",
+      "sudo yum install -y https://rpms.remirepo.net/enterprise/remi-release-7.rpm",
+      "sudo yum install -y yum-utils",
+      "sudo yum-config-manager --enable remi-php56",
+      "sudo yum install -y php php-mcrypt php-cli php-gd",
+      "sudo yum install -y php-mysqlnd",
+      "sudo systemctl start mysqld",
+      "sudo systemctl enable mysqld",
+
     ]
   }
 }
 
-resource "aws_vpc" "test-terraform-vpc" {
+resource "aws_vpc" "test-terraform-vpc" { 
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
@@ -69,21 +96,34 @@ resource "aws_vpc" "test-terraform-vpc" {
   }
 }
 
-resource "aws_subnet" "test-terraform-subnet" {
+resource "aws_subnet" "test-terraform-subnet1" {
   vpc_id                  = aws_vpc.test-terraform-vpc.id #Asociamos un recurso creado con terraform
-  cidr_block              = "172.16.1.0/24"
-  availability_zone       = var.AZ
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = var.AZ1
   map_public_ip_on_launch = "true"
   tags = {
-    Name = "test-terraform-subnet"
+    Name = "test-terraform-subnet1"
   }
 }
 
-resource "aws_internet_gateway" "test-terraform-ig" {
-  vpc_id                  = aws_vpc.test-terraform-vpc.id
-   tags = {
-    Name = "test-terraform-ig"
+resource "aws_subnet" "test-terraform-subnet2" {
+  vpc_id                  = aws_vpc.test-terraform-vpc.id #Asociamos un recurso creado con terraform
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = var.AZ2
+  map_public_ip_on_launch = "true"
+  tags = {
+    Name = "test-terraform-subnet2"
   }
+}
+
+resource "aws_lb" "ALB-Ecommerce" {
+  name               = "alb-ecommerce"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.ssh-http-access.id]
+  subnets            = [for subnet in aws_subnet.public : subnet.id]
+
+  enable_deletion_protection = false
 }
 
 resource "aws_route_table" "test-terraform-rt" {

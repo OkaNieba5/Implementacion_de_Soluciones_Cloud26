@@ -8,7 +8,12 @@ variable "vpc_cidr" {
   description = "Variable para el CIDR block"
 }
 
-variable "AZ" {
+variable "AZ1" {
+  type = string
+  description = "Availability Zone"
+}
+
+variable "AZ2" {
   type = string
   description = "Availability Zone"
 }
