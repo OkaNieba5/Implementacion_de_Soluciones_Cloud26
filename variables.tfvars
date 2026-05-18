@@ -1,0 +1,6 @@
+key = "vockey"
+ami = "ami-098e39bafa7e7303d"
+vpc_cidr = "172.16.0.0/16"
+aws_region = "us-east-1"
+AZ = "us-east-1a"
+instance_type = "t3.micro"
