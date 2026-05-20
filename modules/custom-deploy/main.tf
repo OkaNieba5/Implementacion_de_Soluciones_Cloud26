@@ -153,6 +153,24 @@ resource "aws_internet_gateway" "igw-practico3" {
   vpc_id = aws_vpc.vpc-practico-3tier.id
 }
 
+resource "aws_eip" "nat_eip" {
+  domain     = "vpc"
+  depends_on = [aws_internet_gateway.igw-practico3]
+  
+  tags = {
+    Name = "nat-gateway-eip"
+  }
+}
+
+resource "aws_nat_gateway" "nat_gw" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.Public-subnet1.id
+
+  tags = {
+    Name = "nat_gw"
+  }
+}
+
 resource "aws_subnet" "Public-subnet1" {
   vpc_id                  = aws_vpc.vpc-practico-3tier.id #Asociamos un recurso creado con terraform
   cidr_block              = "10.0.10.0/24"
@@ -176,6 +194,18 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
+resource "aws_route_table" "private_rt" {
+  vpc_id  = aws_vpc.vpc-practico-3tier.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.nat_gw.id
+  }
+
+  tags = {
+    Name = "private_rt"
+  }
+}
+
 resource "aws_route_table_association" "public_route1" {
   subnet_id      = aws_subnet.Public-subnet1.id
   route_table_id = aws_route_table.public_rt.id
@@ -186,14 +216,14 @@ resource "aws_route_table_association" "public_route2" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-resource "aws_subnet" "Internal-subnet1" {
-  vpc_id                  = aws_vpc.vpc-practico-3tier.id #Asociamos un recurso creado con terraform
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = var.AZ1
-  map_public_ip_on_launch = "true"
-  tags = {
-    Name = "Internal-subnet1"
-  }
+resource "aws_route_table_association" "private_route1" {
+  subnet_id      = aws_subnet.Internal-subnet1
+  route_table_id = aws_route_table.private_rt.id
+}
+
+resource "aws_route_table_association" "private_route2" {
+  subnet_id      = aws_subnet.Internal-subnet2.id
+  route_table_id = aws_route_table.private_rt
 }
 
 resource "aws_subnet" "Internal-subnet1" {
@@ -222,15 +252,5 @@ resource "aws_lb" "ALB-Ecommerce" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = [aws_subnet.Public-subnet1, aws_subnet.Public-subnet2]
-
   enable_deletion_protection = false
-}
-
-resource "aws_route_table" "test-terraform-rt" {
-  vpc_id                  = aws_vpc.vpc-practico-3tier.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.test-terraform-ig.id
-  }
-
 }
